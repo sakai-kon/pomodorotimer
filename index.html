@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>勉強ポモドーロタイマー</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: #f4f2ec;
+    color: #2c2c2a;
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px;
+    min-height: 100vh;
+  }
+  .app { width: 100%; max-width: 420px; }
+  h1 { font-size: 20px; font-weight: 500; text-align: center; margin: 0 0 20px; }
+  .card { background: #ffffff; border: 0.5px solid #e0ddd3; border-radius: 16px; padding: 24px; margin-bottom: 16px; }
+  .mode-label { text-align: center; font-size: 14px; font-weight: 500; padding: 6px 14px; border-radius: 999px; display: inline-block; margin: 0 auto 16px; }
+  .mode-wrap { text-align: center; }
+  .mode-work { background: #FAECE7; color: #712B13; }
+  .mode-short { background: #E1F5EE; color: #085041; }
+  .mode-long { background: #E6F1FB; color: #0C447C; }
+  .timer { font-size: 64px; font-weight: 500; text-align: center; font-variant-numeric: tabular-nums; margin: 8px 0 20px; letter-spacing: 2px; }
+  .task-input { width: 100%; height: 40px; border: 0.5px solid #d3d1c7; border-radius: 8px; padding: 0 12px; font-size: 14px; margin-bottom: 16px; background: #faf9f5; }
+  .task-input:focus { outline: none; border-color: #7F77DD; }
+  .controls { display: flex; gap: 10px; margin-bottom: 4px; }
+  button { flex: 1; height: 46px; border-radius: 10px; border: 0.5px solid #d3d1c7; background: #ffffff; font-size: 15px; font-weight: 500; cursor: pointer; color: #2c2c2a; }
+  button:active { transform: scale(0.98); }
+  .btn-primary { background: #2c2c2a; color: #ffffff; border: none; }
+  .btn-reset { flex: 0 0 46px; }
+  .stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .stat { background: #f1efe8; border-radius: 10px; padding: 12px; text-align: center; }
+  .stat .num { font-size: 22px; font-weight: 500; }
+  .stat .label { font-size: 12px; color: #5f5e5a; margin-top: 2px; }
+  .settings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 16px; }
+  .settings label { font-size: 11px; color: #5f5e5a; display: block; margin-bottom: 4px; }
+  .settings input { width: 100%; height: 34px; border: 0.5px solid #d3d1c7; border-radius: 8px; text-align: center; font-size: 14px; background: #faf9f5; }
+  .settings input:focus { outline: none; border-color: #7F77DD; }
+  .log { max-height: 140px; overflow-y: auto; font-size: 13px; }
+  .log-item { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 0.5px solid #efeee8; color: #5f5e5a; }
+  .log-item:last-child { border-bottom: none; }
+  .log-title { color: #2c2c2a; font-weight: 500; }
+  .empty { text-align: center; color: #888780; font-size: 13px; padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <h1>勉強ポモドーロタイマー</h1>
+  <div class="card">
+    <div class="mode-wrap"><span class="mode-label mode-work" id="modeLabel">集中タイム</span></div>
+    <div class="timer" id="display">25:00</div>
+    <input type="text" class="task-input" id="taskInput" placeholder="今何を勉強していますか？（例：数学の宿題）">
+    <div class="controls">
+      <button class="btn-primary" id="startBtn">開始</button>
+      <button id="skipBtn">スキップ</button>
+      <button class="btn-reset" id="resetBtn" title="リセット">↺</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="stats">
+      <div class="stat"><div class="num" id="sessionCount">0</div><div class="label">完了ポモドーロ</div></div>
+      <div class="stat"><div class="num" id="totalMinutes">0分</div><div class="label">今日の学習時間</div></div>
+    </div>
+    <div class="settings">
+      <div><label>集中(分)</label><input type="number" id="workMin" value="25" min="1" max="90"></div>
+      <div><label>小休憩(分)</label><input type="number" id="shortMin" value="5" min="1" max="30"></div>
+      <div><label>長休憩(分)</label><input type="number" id="longMin" value="15" min="1" max="60"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-size:13px; font-weight:500; margin-bottom:8px; color:#5f5e5a;">記録</div>
+    <div class="log" id="log"><div class="empty">まだ記録がありません</div></div>
+  </div>
+</div>
+<script>
+let workMin = 25, shortMin = 5, longMin = 15;
+let mode = 'work';
+let secondsLeft = workMin * 60;
+let running = false;
+let timerId = null;
+let sessionCount = 0;
+let totalStudySeconds = 0;
+let history = [];
+
+const display = document.getElementById('display');
+const modeLabel = document.getElementById('modeLabel');
+const startBtn = document.getElementById('startBtn');
+const skipBtn = document.getElementById('skipBtn');
+const resetBtn = document.getElementById('resetBtn');
+const taskInput = document.getElementById('taskInput');
+const sessionCountEl = document.getElementById('sessionCount');
+const totalMinutesEl = document.getElementById('totalMinutes');
+const logEl = document.getElementById('log');
+const workMinInput = document.getElementById('workMin');
+const shortMinInput = document.getElementById('shortMin');
+const longMinInput = document.getElementById('longMin');
+
+function formatTime(s) {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
+}
+function modeDuration(m) {
+  if (m === 'work') return workMin * 60;
+  if (m === 'short') return shortMin * 60;
+  return longMin * 60;
+}
+function updateModeLabel() {
+  modeLabel.classList.remove('mode-work', 'mode-short', 'mode-long');
+  if (mode === 'work') { modeLabel.textContent = '集中タイム'; modeLabel.classList.add('mode-work'); }
+  else if (mode === 'short') { modeLabel.textContent = '小休憩'; modeLabel.classList.add('mode-short'); }
+  else { modeLabel.textContent = '長休憩'; modeLabel.classList.add('mode-long'); }
+}
+function render() {
+  display.textContent = formatTime(secondsLeft);
+  sessionCountEl.textContent = sessionCount;
+  totalMinutesEl.textContent = Math.floor(totalStudySeconds / 60) + '分';
+  startBtn.textContent = running ? '一時停止' : '開始';
+  updateModeLabel();
+  document.title = formatTime(secondsLeft) + ' - 勉強ポモドーロタイマー';
+}
+function addLog(text) {
+  history.unshift({ text: text, time: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) });
+  if (history.length > 20) history.pop();
+  renderLog();
+}
+function renderLog() {
+  if (history.length === 0) { logEl.innerHTML = '<div class="empty">まだ記録がありません</div>'; return; }
+  logEl.innerHTML = history.map(function(h) {
+    return '<div class="log-item"><span class="log-title">' + h.text + '</span><span>' + h.time + '</span></div>';
+  }).join('');
+}
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
+    osc.start(); osc.stop(ctx.currentTime + 0.6);
+  } catch (e) {}
+}
+function nextMode() {
+  if (mode === 'work') {
+    sessionCount++;
+    totalStudySeconds += workMin * 60;
+    const taskName = taskInput.value.trim() || '無題のタスク';
+    addLog('完了：' + taskName);
+    mode = (sessionCount % 4 === 0) ? 'long' : 'short';
+  } else {
+    addLog(mode === 'long' ? '長休憩終了' : '小休憩終了');
+    mode = 'work';
+  }
+  secondsLeft = modeDuration(mode);
+  render();
+}
+function tick() {
+  if (secondsLeft > 0) { secondsLeft--; render(); }
+  else { playBeep(); nextMode(); }
+}
+function start() {
+  if (running) { running = false; clearInterval(timerId); }
+  else { running = true; timerId = setInterval(tick, 1000); }
+  render();
+}
+function skip() {
+  clearInterval(timerId);
+  running = false;
+  nextMode();
+}
+function reset() {
+  clearInterval(timerId);
+  running = false;
+  mode = 'work';
+  applySettings();
+  secondsLeft = modeDuration(mode);
+  render();
+}
+function applySettings() {
+  const w = parseInt(workMinInput.value, 10);
+  const s = parseInt(shortMinInput.value, 10);
+  const l = parseInt(longMinInput.value, 10);
+  workMin = (w > 0) ? w : 25;
+  shortMin = (s > 0) ? s : 5;
+  longMin = (l > 0) ? l : 15;
+}
+[workMinInput, shortMinInput, longMinInput].forEach(function(el) {
+  el.addEventListener('change', function() {
+    applySettings();
+    if (!running) { secondsLeft = modeDuration(mode); render(); }
+  });
+});
+startBtn.addEventListener('click', start);
+skipBtn.addEventListener('click', skip);
+resetBtn.addEventListener('click', reset);
+render();
+</script>
+</body>
+</html>
