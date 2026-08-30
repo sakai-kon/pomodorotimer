@@ -1,13 +1,9 @@
-const CACHE_NAME = 'pomodoro-timer-v12';
-const VERSION = '1.0.12';
-const ASSETS = ['./', './index.html', './manifest.json', './reset.js', './storage-guard.js'];
+const CACHE_NAME = 'pomodoro-timer-v13';
+const VERSION = '1.0.13';
+const ASSETS = ['./', './index.html', './manifest.json', './reset.js', './storage-guard.js', './data-preserve.js'];
 
 self.addEventListener('install', event => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(ASSETS))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', event => {
@@ -15,10 +11,6 @@ self.addEventListener('activate', event => {
     caches.keys()
       .then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))
       .then(() => self.clients.claim())
-      .then(async () => {
-        const clients = await self.clients.matchAll({type:'window'});
-        for (const client of clients) client.postMessage({type:'POMODORO_UPDATE', version: VERSION});
-      })
   );
 });
 
@@ -33,7 +25,8 @@ async function injectControls(response) {
     const oldVersion = /<div id="appVersion"[^>]*>.*?<\/div>/s;
     if (oldVersion.test(result)) result = result.replace(oldVersion, versionHtml);
     else result = result.replace(/(<h1[^>]*>.*?<\/h1>)/s, `$1${versionHtml}`);
-    if (!result.includes('storage-guard.js')) result = result.replace('</head>', '<script src="./storage-guard.js"></script></head>');
+    const injectHead = '<script src="./data-preserve.js"></script><script src="./storage-guard.js"></script>';
+    if (!result.includes('data-preserve.js')) result = result.replace('</head>', injectHead + '</head>');
     if (!result.includes('reset.js')) result = result.replace('</body>', '<script src="./reset.js"></script></body>');
     const headers = new Headers(response.headers);
     headers.delete('content-length');
@@ -63,8 +56,8 @@ self.addEventListener('fetch', event => {
     caches.match(event.request).then(cached => {
       if (cached) return cached;
       return fetch(event.request).then(response => {
-        const copy=response.clone();
-        caches.open(CACHE_NAME).then(cache=>cache.put(event.request,copy));
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
         return response;
       });
     })
