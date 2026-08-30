@@ -1,5 +1,5 @@
-const CACHE_NAME = 'pomodoro-timer-v7';
-const ASSETS = ['./', './index.html', './manifest.json', './reset.js'];
+const CACHE_NAME = 'pomodoro-timer-v8';
+const ASSETS = ['./', './index.html', './manifest.json', './reset.js', './storage-guard.js'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -8,6 +8,7 @@ self.addEventListener('install', (event) => {
       .then(() => self.skipWaiting())
   );
 });
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
@@ -16,39 +17,50 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-async function injectResetControl(response) {
+async function injectControls(response) {
   if (!response || !response.ok) return response;
   const type = response.headers.get('content-type') || '';
   if (!type.includes('text/html')) return response;
   try {
     const html = await response.text();
-    if (html.includes('reset.js')) return new Response(html, {status: response.status, statusText: response.statusText, headers: response.headers});
+    let result = html;
+    if (!result.includes('storage-guard.js')) {
+      result = result.replace('</head>', '<script src="./storage-guard.js"></script></head>');
+    }
+    if (!result.includes('reset.js')) {
+      result = result.replace('</body>', '<script src="./reset.js"></script></body>');
+    }
+    if (result === html) return response;
     const headers = new Headers(response.headers);
     headers.delete('content-length');
-    return new Response(html.replace('</body>', '<script src="./reset.js"></script></body>'), {status: response.status, statusText: response.statusText, headers});
-  } catch (_) { return response; }
+    return new Response(result, { status: response.status, statusText: response.statusText, headers });
+  } catch (_) {
+    return response;
+  }
 }
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   const isDocument = event.request.mode === 'navigate' || url.pathname.endsWith('/index.html') || url.pathname.endsWith('/');
+
   if (isDocument) {
     event.respondWith(
       fetch(event.request)
         .then(async (response) => {
-          const processed = await injectResetControl(response.clone());
+          const processed = await injectControls(response.clone());
           const cache = await caches.open(CACHE_NAME);
           await cache.put(event.request, processed.clone());
           return processed;
         })
         .catch(async () => {
           const cached = await caches.match(event.request) || await caches.match('./index.html');
-          return injectResetControl(cached);
+          return injectControls(cached);
         })
     );
     return;
   }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
