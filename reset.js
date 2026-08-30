@@ -1,5 +1,5 @@
 (() => {
-  const APP_KEYS = ['pomodoroTimerStateV3', 'pomodoroTimerStateV2', 'pomodoroTimerState'];
+  const APP_KEYS = ['pomodoroTimerStateV3', 'pomodoroTimerStateV2', 'pomodoroTimerState', 'pomodoroTimerStateV3_backup'];
 
   function addResetButton() {
     if (document.getElementById('fullResetBtn')) return;
