@@ -1,0 +1,11 @@
+{
+  "name": "勉強ポモドーロタイマー",
+  "short_name": "ポモドーロタイマー",
+  "description": "勉強用のシンプルなポモドーロタイマー",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f2ec",
+  "theme_color": "#2c2c2a",
+  "lang": "ja"
+}
