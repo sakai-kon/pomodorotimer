@@ -1,4 +1,5 @@
-const CACHE_NAME = 'pomodoro-timer-v9';
+const CACHE_NAME = 'pomodoro-timer-v10';
+const VERSION = '1.0.10';
 const ASSETS = ['./', './index.html', './manifest.json', './reset.js', './storage-guard.js'];
 
 self.addEventListener('install', (event) => {
@@ -24,10 +25,11 @@ async function injectControls(response) {
   try {
     const html = await response.text();
     let result = html;
+    const versionHtml = `<div id="appVersion" style="font-size:10px;color:#888780;text-align:center;margin-top:-7px;margin-bottom:10px">Version ${VERSION}</div>`;
+    const oldVersion = /<div id="appVersion"[^>]*>.*?<\/div>/s;
+    if (oldVersion.test(result)) result = result.replace(oldVersion, versionHtml);
+    else result = result.replace(/(<h1[^>]*>.*?<\/h1>)/s, `$1${versionHtml}`);
 
-    // Preserve the existing UI, but fix the old load() branch that erased all
-    // history whenever the calendar date changed. A PWA restart must never
-    // behave like a data reset.
     const oldResetBranch = "else{mode='work';secondsLeft=duration('work');running=false;endAt=null;sessionCount=0;totalStudySeconds=0;history=[];sessions=[];daily={}}";
     const safeBranch = "else{mode=['work','short','long'].includes(s.mode)?s.mode:'work';secondsLeft=Math.max(0,+s.secondsLeft||duration(mode));running=s.running===true;endAt=+s.endAt||null;sessionCount=Array.isArray(s.sessions)?s.sessions.filter(x=>x&&x.date===dateKey()).length:0;totalStudySeconds=Array.isArray(s.sessions)?s.sessions.filter(x=>x&&x.date===dateKey()).reduce((a,x)=>a+(+x.minutes||0)*60,0):0;history=Array.isArray(s.history)?s.history.slice(0,30):[];sessions=Array.isArray(s.sessions)?s.sessions.slice(-200):[];daily=s.daily&&typeof s.daily==='object'?s.daily:{}}";
     result = result.replace(oldResetBranch, safeBranch);
@@ -38,8 +40,6 @@ async function injectControls(response) {
     if (!result.includes('reset.js')) {
       result = result.replace('</body>', '<script src="./reset.js"></script></body>');
     }
-
-    if (result === html) return response;
     const headers = new Headers(response.headers);
     headers.delete('content-length');
     return new Response(result, { status: response.status, statusText: response.statusText, headers });
